@@ -1,0 +1,17 @@
+{
+  "name": "instrument-management-system",
+  "version": "1.0.0",
+  "description": "仪器查询与出入库管理系统",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["instrument", "management", "inventory"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}

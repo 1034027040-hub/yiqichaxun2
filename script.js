@@ -53,11 +53,8 @@ const defaultInstrumentData = [
 
 // 管理密码
 const ADMIN_PASSWORD = "fjjky1234";
-// 本地存储键名
-const STORAGE_KEY = "instrument_system_data";
-const UPDATE_TIME_KEY = "instrument_system_last_update";
-const USAGE_RECORDS_KEY = "instrument_usage_records";
-const INVENTORY_DATA_KEY = "inventory_data";
+// API 配置 - 动态获取当前页面的域名和端口，确保所有设备连接到同一个服务器
+const API_BASE_URL = `${window.location.origin}/api`;
 // 本地存储版本
 const STORAGE_VERSION = "1.0";
 
@@ -122,41 +119,35 @@ let inventoryData = {
 
 // ===== 数据初始化和管理 =====
 
-// 初始化：从本地存储加载数据或使用默认数据
-function initData() {
-    const savedData = localStorage.getItem(STORAGE_KEY);
-    
-    if (savedData) {
-        try {
-            const parsedData = JSON.parse(savedData);
-            if (parsedData.version === STORAGE_VERSION && parsedData.data) {
-                instrumentData = parsedData.data;
-                console.log("从本地存储加载仪器数据");
-                showMessage("已加载本地保存的数据", "success");
-            } else {
-                // 版本不匹配或数据结构不正确，使用默认数据
-                instrumentData = [...defaultInstrumentData];
-                saveDataToStorage();
-                showMessage("数据版本不匹配，已恢复默认数据", "info");
-            }
-        } catch (e) {
-            console.error("加载本地存储数据时出错:", e);
+// 初始化：从API加载数据或使用默认数据
+async function initData() {
+    try {
+        // 从API加载仪器数据
+        const response = await fetch(`${API_BASE_URL}/instruments`);
+        const apiData = await response.json();
+        
+        if (Array.isArray(apiData) && apiData.length > 0) {
+            instrumentData = apiData;
+            console.log("从API加载仪器数据");
+            showMessage("已加载服务器数据", "success");
+        } else {
+            // API返回空数据，使用默认数据并保存到API
             instrumentData = [...defaultInstrumentData];
-            saveDataToStorage();
-            showMessage("加载数据出错，已恢复默认数据", "error");
+            await saveDataToStorage();
+            showMessage("使用默认数据并保存到服务器", "info");
         }
-    } else {
-        // 本地存储中没有数据，使用默认数据并保存
+    } catch (e) {
+        console.error("从API加载数据时出错:", e);
+        // API请求失败时，使用默认数据
         instrumentData = [...defaultInstrumentData];
-        saveDataToStorage();
-        console.log("使用默认仪器数据并保存到本地存储");
+        showMessage("连接服务器失败，使用本地默认数据", "warning");
     }
     
     // 加载使用记录数据
-    loadUsageRecords();
+    await loadUsageRecords();
     
     // 加载出入库数据
-    loadInventoryData();
+    await loadInventoryData();
     
     // 每次打开主页面时，清空选中的仪器ID
     selectedInstrumentIds = [];
@@ -174,72 +165,113 @@ function initData() {
 }
 
 // 加载使用记录数据
-function loadUsageRecords() {
-    const savedRecords = localStorage.getItem(USAGE_RECORDS_KEY);
-    
-    if (savedRecords) {
-        try {
-            const parsedRecords = JSON.parse(savedRecords);
-            usageRecords = parsedRecords;
-            console.log("从本地存储加载使用记录数据");
-        } catch (e) {
-            console.error("加载使用记录数据时出错:", e);
-            usageRecords = {
-                "TE02-055": [],
-                "TE02-033": [],
-                "TE02-053": []
-            };
+async function loadUsageRecords() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/usage-records`);
+        const apiRecords = await response.json();
+        
+        if (Array.isArray(apiRecords)) {
+            // 将API返回的数组转换为对象格式
+            const recordsObject = {};
+            apiRecords.forEach(record => {
+                if (!recordsObject[record.instrumentId]) {
+                    recordsObject[record.instrumentId] = [];
+                }
+                recordsObject[record.instrumentId].push(record);
+            });
+            usageRecords = recordsObject;
+            console.log("从API加载使用记录数据");
         }
+    } catch (e) {
+        console.error("从API加载使用记录数据时出错:", e);
+        usageRecords = {
+            "TE02-055": [],
+            "TE02-033": [],
+            "TE02-053": []
+        };
     }
 }
 
 // 保存使用记录数据
-function saveUsageRecords() {
+async function saveUsageRecords() {
     try {
-        localStorage.setItem(USAGE_RECORDS_KEY, JSON.stringify(usageRecords));
-        console.log("使用记录数据已保存到本地存储");
+        // 将使用记录对象转换为数组格式
+        const recordsArray = [];
+        Object.keys(usageRecords).forEach(instrumentId => {
+            usageRecords[instrumentId].forEach(record => {
+                recordsArray.push({
+                    ...record,
+                    instrumentId: instrumentId
+                });
+            });
+        });
+        
+        const response = await fetch(`${API_BASE_URL}/usage-records`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(recordsArray)
+        });
+        
+        if (response.ok) {
+            console.log("使用记录数据已保存到服务器");
+        } else {
+            console.error("保存使用记录数据到服务器时出错:", await response.text());
+        }
     } catch (e) {
         console.error("保存使用记录数据时出错:", e);
     }
 }
 
 // 加载出入库数据
-function loadInventoryData() {
-    const savedInventory = localStorage.getItem(INVENTORY_DATA_KEY);
-    
-    if (savedInventory) {
-        try {
-            const parsedInventory = JSON.parse(savedInventory);
-            inventoryData = parsedInventory;
-            console.log("从本地存储加载出入库数据");
-        } catch (e) {
-            console.error("加载出入库数据时出错:", e);
-            inventoryData = {
-                contractNo: '',
-                projectName: '',
-                outboundInfo: {
-                    date: '',
-                    receiver: '',
-                    manager: ''
-                },
-                inboundInfo: {
-                    date: '',
-                    status: '正常',
-                    returner: '',
-                    manager: ''
-                },
-                instruments: [],
-                generateTime: ''
-            };
+async function loadInventoryData() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/inventory`);
+        const apiInventory = await response.json();
+        
+        if (apiInventory) {
+            inventoryData = apiInventory;
+            console.log("从API加载出入库数据");
         }
+    } catch (e) {
+        console.error("从API加载出入库数据时出错:", e);
+        inventoryData = {
+            contractNo: '',
+            projectName: '',
+            outboundInfo: {
+                date: '',
+                receiver: '',
+                manager: ''
+            },
+            inboundInfo: {
+                date: '',
+                status: '正常',
+                returner: '',
+                manager: ''
+            },
+            instruments: [],
+            generateTime: ''
+        };
     }
 }
 
 // 保存出入库数据
-function saveInventoryData() {
+async function saveInventoryData() {
     try {
-        localStorage.setItem(INVENTORY_DATA_KEY, JSON.stringify(inventoryData));
-        console.log("出入库数据已保存到本地存储");
+        const response = await fetch(`${API_BASE_URL}/inventory`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(inventoryData)
+        });
+        
+        if (response.ok) {
+            console.log("出入库数据已保存到服务器");
+        } else {
+            console.error("保存出入库数据到服务器时出错:", await response.text());
+        }
     } catch (e) {
         console.error("保存出入库数据时出错:", e);
     }
@@ -247,36 +279,12 @@ function saveInventoryData() {
 
 // 更新最近更新时间显示
 function updateLastUpdateTimeDisplay() {
-    const lastUpdateTime = localStorage.getItem(UPDATE_TIME_KEY);
     const lastUpdateElement = document.getElementById('lastUpdateTime');
-    
-    if (lastUpdateTime) {
-        try {
-            const updateDate = new Date(lastUpdateTime);
-            const now = new Date();
-            const diffInMinutes = Math.floor((now - updateDate) / (1000 * 60));
-            
-            let displayText = '';
-            if (diffInMinutes < 1) {
-                displayText = '刚刚';
-            } else if (diffInMinutes < 60) {
-                displayText = `${diffInMinutes}分钟前`;
-            } else if (diffInMinutes < 1440) { // 24小时
-                const hours = Math.floor(diffInMinutes / 60);
-                displayText = `${hours}小时前`;
-            } else {
-                const days = Math.floor(diffInMinutes / 1440);
-                displayText = `${days}天前`;
-            }
-            
-            lastUpdateElement.textContent = displayText;
-            lastUpdateElement.title = `最后更新：${updateDate.toLocaleString('zh-CN')}`;
-        } catch (e) {
-            console.error("解析更新时间时出错:", e);
-            lastUpdateElement.textContent = '未知时间';
-        }
-    } else {
-        lastUpdateElement.textContent = '从未更新';
+    if (lastUpdateElement) {
+        // 简化显示，显示当前时间
+        const now = new Date();
+        lastUpdateElement.textContent = '刚刚';
+        lastUpdateElement.title = `最后更新：${now.toLocaleString('zh-CN')}`;
     }
 }
 
@@ -295,27 +303,34 @@ function initPrintSettings() {
     printSettings.manager = '';
 }
 
-// 保存数据到本地存储
-function saveDataToStorage() {
+// 保存数据到服务器
+async function saveDataToStorage() {
     try {
         const now = new Date().toISOString();
-        const dataToSave = {
-            version: STORAGE_VERSION,
-            data: instrumentData,
-            lastUpdated: now
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-        localStorage.setItem(UPDATE_TIME_KEY, now);
-        console.log("数据已保存到本地存储");
         
-        // 更新最近更新时间显示
-        updateLastUpdateTimeDisplay();
+        const response = await fetch(`${API_BASE_URL}/instruments`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(instrumentData)
+        });
         
-        // 显示自动保存指示器
-        showAutoSaveIndicator();
+        if (response.ok) {
+            console.log("数据已保存到服务器");
+            
+            // 更新最近更新时间显示
+            updateLastUpdateTimeDisplay();
+            
+            // 显示自动保存指示器
+            showAutoSaveIndicator();
+        } else {
+            console.error("保存数据到服务器时出错:", await response.text());
+            showMessage("保存数据到服务器失败", "error");
+        }
     } catch (e) {
-        console.error("保存数据到本地存储时出错:", e);
-        showMessage("保存数据时出错，请检查浏览器设置", "error");
+        console.error("保存数据时出错:", e);
+        showMessage("连接服务器失败，保存数据失败", "error");
     }
 }
 
@@ -3130,9 +3145,9 @@ function restoreAfterPrint() {
 // ===== 事件监听器设置 =====
 
 // 页面加载完成后初始化
-document.addEventListener('DOMContentLoaded', function() {
-    // 初始化数据（从本地存储加载或使用默认数据）
-    initData();
+document.addEventListener('DOMContentLoaded', async function() {
+    // 初始化数据（从API加载或使用默认数据）
+    await initData();
     
     // 初始化表格
     initTable();
@@ -3141,7 +3156,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateSelectedCount();
     
     // 显示加载状态
-    console.log("仪器查询系统已加载，数据已从本地存储恢复");
+    console.log("仪器查询系统已加载，数据已从服务器恢复");
     console.log("提示：支持模糊查询，不区分大小写");
     console.log("提示：表格支持分页浏览，每页显示10条数据");
     console.log("提示：现在支持查询仪器自动勾选仪器列表中的对应仪器");
