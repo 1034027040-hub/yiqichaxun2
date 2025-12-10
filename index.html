@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仪器查询与出入库管理系统</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- 主页面 - 仪器查询系统 -->
+    <div class="main-container" id="mainContainer">
+        <header>
+            <h1>仪器查询与管理系统</h1>
+            <p class="subtitle">仪器设备管理平台 - 支持分页浏览和仪器出入库生成</p>
+            <div class="last-update-time">
+                <span class="icon icon-time"></span>
+                最近更新：<span id="lastUpdateTime">从未更新</span>
+            </div>
+            <div class="header-buttons">
+                <button id="dataExportBtn" class="data-export-btn">
+                    <span class="icon icon-export"></span>
+                    导出数据
+                </button>
+                <button id="dataImportBtn" class="data-import-btn">
+                    <span class="icon icon-import"></span>
+                    导入数据
+                </button>
+                <button id="adminLoginBtn" class="admin-login-btn">
+                    <span class="icon icon-lock"></span>
+                    管理员登录
+                </button>
+            </div>
+            <!-- 新增使用表按钮 -->
+            <div class="usage-btn-group">
+                <button id="usageBtn055" class="usage-btn">
+                    <span class="icon icon-calendar"></span>
+                    TE02-055使用表
+                </button>
+                <button id="usageBtn033" class="usage-btn">
+                    <span class="icon icon-calendar"></span>
+                    TE02-033使用表
+                </button>
+                <button id="usageBtn053" class="usage-btn">
+                    <span class="icon icon-calendar"></span>
+                    TE02-053使用表
+                </button>
+            </div>
+        </header>
+        
+        <div class="content">
+            <div class="search-section">
+                <input type="text" id="searchInput" class="search-input" placeholder="请输入仪器管理编号，如：TE06-032" autofocus>
+                <button id="searchBtn" class="search-btn">
+                    <span class="icon icon-search"></span>
+                    查询仪器
+                </button>
+            </div>
+            
+            <div class="result-section">
+                <h2 class="result-title">
+                    <span class="icon icon-instrument"></span>
+                    仪器信息
+                </h2>
+                <div id="resultContent" class="result-empty">
+                    请输入仪器管理编号进行查询
+                </div>
+            </div>
+            
+            <!-- 管理区域 - 默认隐藏，通过管理员登录后显示 -->
+            <div class="management-section" id="managementSection">
+                <h2 class="management-title">
+                    <span class="icon icon-lock"></span>
+                    仪器有效期管理
+                </h2>
+                
+                <!-- 新增：管理员操作按钮组 -->
+                <div class="admin-actions" id="adminActions" style="display: none;">
+                    <button id="addInstrumentBtn" class="admin-action-btn">
+                        <span class="icon icon-add"></span>
+                        添加新仪器
+                    </button>
+                    <button id="deleteSelectedBtn" class="admin-action-btn delete-btn">
+                        <span class="icon icon-delete"></span>
+                        删除选中仪器
+                    </button>
+                    <div class="admin-hint">
+                        <span class="icon icon-info"></span>
+                        管理员模式已启用：您可以添加新仪器或删除选中的仪器
+                    </div>
+                </div>
+                
+                <div id="authStatus" class="auth-status" style="display: none;">
+                    <span>管理员身份已验证</span>
+                    <button id="logoutBtn" class="logout-btn">退出管理</button>
+                </div>
+                
+                <div id="expiryForm" class="expiry-form" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="expiryDate">有效期至</label>
+                            <input type="date" id="expiryDate" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="expiryNotes">备注</label>
+                            <input type="text" id="expiryNotes" class="form-control" placeholder="可选：校准、维修等信息">
+                        </div>
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button id="saveBtn" class="btn-save">保存有效期</button>
+                        <button id="cancelBtn" class="btn-cancel">取消</button>
+                    </div>
+                    
+                    <div class="auto-save-info">
+                        <p style="font-size: 0.9rem; color: #7f8c8d; margin-top: 15px;">
+                            <strong>自动保存提示：</strong>所有更改会自动保存到浏览器本地存储中，即使关闭页面数据也不会丢失。
+                        </p>
+                    </div>
+                </div>
+                
+                <div id="message" class="message"></div>
+            </div>
+            
+            <!-- 仪器信息列表区域 -->
+            <div class="instruments-table">
+                <div class="pagination-info-top" id="paginationInfoTop">
+                    第 <span id="currentPageDisplayTop">1</span> 页，共 <span id="totalPagesDisplayTop">1</span> 页，总计 <span id="totalInstrumentsTop">0</span> 台仪器
+                </div>
+                
+                <div class="table-header">
+                    <h2>仪器信息列表</h2>
+                    <div class="table-actions">
+                        <div style="display: flex; align-items: center;">
+                            <label class="select-all-label">
+                                <input type="checkbox" id="selectAllCheckbox" class="select-all-checkbox">
+                                <span>全选当前页</span>
+                            </label>
+                            <span id="selectedCount" class="selected-count" style="display: none;">0</span>
+                        </div>
+                        <!-- 修改：将原来的生成仪器出入库按钮改为出库按钮，并添加入库按钮 -->
+                        <button id="outboundBtn" class="inventory-btn" disabled>
+                            <span class="icon icon-export"></span>
+                            出库
+                        </button>
+                        <button id="inboundBtn" class="inventory-btn" style="background: linear-gradient(to right, #27ae60, #219653);">
+                            <span class="icon icon-import"></span>
+                            入库
+                        </button>
+                        <button id="batchEditBtn" class="batch-edit-btn" disabled>
+                            <span class="icon icon-edit"></span>
+                            批量编辑选中仪器
+                        </button>
+                    </div>
+                </div>
+                <table id="mainInstrumentTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px; text-align: center;">
+                                <span class="icon icon-checkbox"></span>
+                            </th>
+                            <th>管理编号</th>
+                            <th>仪器名称</th>
+                            <th>型号规格</th>
+                            <th>出厂编号</th>
+                            <th>上次检定日期</th>
+                            <th>有效期至</th>
+                            <th>状态</th>
+                            <th>备注</th>
+                        </tr>
+                    </thead>
+                    <tbody id="instrumentTable">
+                        <!-- 表格数据将通过JavaScript动态生成 -->
+                    </tbody>
+                </table>
+                
+                <!-- 分页控件 -->
+                <div class="pagination-controls">
+                    <div class="pagination-info">
+                       
+                    </div>
+                    
+                    <div class="pagination-buttons">
+                        <button id="firstPageBtn" class="page-btn" disabled>
+                            首页
+                        </button>
+                        <button id="prevPageBtn" class="page-btn" disabled>
+                            上一页
+                        </button>
+                        
+                        <div class="page-numbers" id="pageNumbers">
+                            <!-- 页码按钮将通过JavaScript动态生成 -->
+                        </div>
+                        
+                        <button id="nextPageBtn" class="page-btn" disabled>
+                            下一页
+                        </button>
+                        <button id="lastPageBtn" class="page-btn" disabled>
+                            末页
+                        </button>
+                        
+                        <div class="page-size-selector">
+                            <span>每页显示：</span>
+                            <select id="pageSizeSelect">
+                                <option value="5">5条</option>
+                                <option value="10" selected>10条</option>
+                                <option value="20">20条</option>
+                                <option value="50">50条</option>
+                                <option value="100">100条</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 15px;">
+                        <span>跳转到第</span>
+                        <input type="number" id="jumpToPage" class="page-input" min="1" value="1">
+                        <span>页</span>
+                        <button id="jumpToPageBtn" class="page-btn" style="padding: 8px 15px; font-size: 0.9rem;">跳转</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>仪器查询与管理系统 &copy; 2025 | 仪器设备管理平台</p>
+            <p style="margin-top: 5px; font-size: 0.8rem;">提示：所有更改会自动保存 | 支持分页浏览 | 支持仪器出入库生成</p>
+        </div>
+    </div>
+    
+    <!-- 仪器出入库页面（H2页面） -->
+    <div class="inventory-page" id="inventoryPage">
+        <div class="inventory-container">
+            <!-- 标题区域 -->
+            <div class="inventory-title-section">
+                <h1 class="inventory-title-main">现场仪器设备出入库登记台帐</h1>
+            </div>
+            
+            <!-- 表单区域 -->
+            <div class="inventory-form-section">
+                <div class="inventory-form-inputs">
+                    <div class="form-input-group">
+                        <label>委托/合同编号：</label>
+                        <input type="text" id="contractNoPrint" class="inventory-input-print" placeholder="请输入委托/合同编号">
+                    </div>
+                    <div class="form-input-group">
+                        <label>项目名称：</label>
+                        <input type="text" id="projectNamePrint" class="inventory-input-print" placeholder="请输入项目名称">
+                    </div>
+                </div>
+                <div class="form-no-text">FJYET-BG-2214A/0</div>
+            </div>
+            
+            <!-- 操作按钮区域 - 新增导出和导入按钮 -->
+            <div class="inventory-actions no-print">
+                <button id="backToMainBtn" class="back-btn">
+                    <span>返回主页面</span>
+                </button>
+                <button id="inventoryExportBtn" class="inventory-export-btn">
+                    <span class="icon icon-export"></span>
+                    导出出库
+                </button>
+                <button id="inventoryImportBtn" class="inventory-import-btn">
+                    <span class="icon icon-import"></span>
+                    导入出库
+                </button>
+                <button id="inventoryPrintBtn" class="inventory-print-btn">
+                    <span class="icon icon-print"></span>
+                    打印出入库台账
+                </button>
+            </div>
+            
+            <!-- 表格区域 -->
+            <div class="inventory-table-section">
+                <h3 class="no-print">仪器设备出入库明细</h3>
+                <div class="inventory-table-container" id="inventoryTableContainer">
+                    <!-- 打印表格将通过JavaScript动态生成 -->
+                </div>
+            </div>
+            
+            <div class="inventory-footer no-print">
+                <p>生成时间：<span id="inventoryGenerateTime"></span></p>
+                <p style="margin-top: 10px; font-size: 0.8rem;">提示：打印时将自动隐藏操作按钮，仅打印台账内容</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- TE02-055使用表页面（H3页面） -->
+    <div class="usage-page" id="usagePage055">
+        <div class="usage-container">
+            <!-- 标题区域 -->
+            <div class="usage-title-section">
+                <h1 class="usage-title-main">仪器设备日常使用情况记录表</h1>
+            </div>
+            
+            <!-- 表单区域 -->
+            <div class="usage-form-section no-print">
+                <div class="usage-form-inputs">
+                    <div class="form-input-group">
+                        <label>年度：</label>
+                        <input type="number" id="year055" class="year-input" value="2025" min="2000" max="2100">
+                    </div>
+                    <div class="form-input-group">
+                        <label>管理编号：</label>
+                        <span>TE02-055</span>
+                    </div>
+                    <div class="form-input-group">
+                        <label>仪器设备名称型号规格：</label>
+                        <span>全站仪 ES-602G</span>
+                    </div>
+                </div>
+                <div class="form-no-text">FJYET-BG-2215A/0</div>
+            </div>
+            
+            <!-- 操作按钮区域 -->
+            <div class="usage-actions no-print">
+                <button id="backToMainFrom055Btn" class="back-btn">
+                    <span>返回主页面</span>
+                </button>
+                <button id="editUsage055Btn" class="usage-edit-btn">
+                    <span class="icon icon-edit"></span>
+                    编辑使用记录
+                </button>
+            </div>
+            
+            <!-- 表格区域 -->
+            <div class="usage-table-section">
+                <h3 class="no-print">仪器设备日常使用记录</h3>
+                <div class="usage-table-container" id="usageTableContainer055">
+                    <!-- 使用记录表格将通过JavaScript动态生成 -->
+                </div>
+            </div>
+            
+            <div class="usage-footer no-print">
+                <p>生成时间：<span id="usageGenerateTime055"></span></p>
+                <p style="margin-top: 10px; font-size: 0.8rem;"></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- TE02-033使用表页面（H4页面） -->
+    <div class="usage-page" id="usagePage033">
+        <div class="usage-container">
+            <!-- 标题区域 -->
+            <div class="usage-title-section">
+                <h1 class="usage-title-main">仪器设备日常使用情况记录表</h1>
+            </div>
+            
+            <!-- 表单区域 -->
+            <div class="usage-form-section no-print">
+                <div class="usage-form-inputs">
+                    <div class="form-input-group">
+                        <label>年度：</label>
+                        <input type="number" id="year033" class="year-input" value="2025" min="2000" max="2100">
+                    </div>
+                    <div class="form-input-group">
+                        <label>管理编号：</label>
+                        <span>TE02-033</span>
+                    </div>
+                    <div class="form-input-group">
+                        <label>仪器设备名称型号规格：</label>
+                        <span>全站仪 ES-602G</span>
+                    </div>
+                </div>
+                <div class="form-no-text">FJYET-BG-2215A/0</div>
+            </div>
+            
+            <!-- 操作按钮区域 -->
+            <div class="usage-actions no-print">
+                <button id="backToMainFrom033Btn" class="back-btn">
+                    <span>返回主页面</span>
+                </button>
+                <button id="editUsage033Btn" class="usage-edit-btn">
+                    <span class="icon icon-edit"></span>
+                    编辑使用记录
+                </button>
+            </div>
+            
+            <!-- 表格区域 -->
+            <div class="usage-table-section">
+                <h3 class="no-print">仪器设备日常使用记录</h3>
+                <div class="usage-table-container" id="usageTableContainer033">
+                    <!-- 使用记录表格将通过JavaScript动态生成 -->
+                </div>
+            </div>
+            
+            <div class="usage-footer no-print">
+                <p>生成时间：<span id="usageGenerateTime033"></span></p>
+                <p style="margin-top: 10px; font-size: 0.8rem;"></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- TE02-053使用表页面（H5页面） -->
+    <div class="usage-page" id="usagePage053">
+        <div class="usage-container">
+            <!-- 标题区域 -->
+            <div class="usage-title-section">
+                <h1 class="usage-title-main">仪器设备日常使用情况记录表</h1>
+            </div>
+            
+            <!-- 表单区域 -->
+            <div class="usage-form-section no-print">
+                <div class="usage-form-inputs">
+                    <div class="form-input-group">
+                        <label>年度：</label>
+                        <input type="number" id="year053" class="year-input" value="2025" min="2000" max="2100">
+                    </div>
+                    <div class="form-input-group">
+                        <label>管理编号：</label>
+                        <span>TE02-053</span>
+                    </div>
+                    <div class="form-input-group">
+                        <label>仪器设备名称型号规格：</label>
+                        <span>水准仪 DiNi 0.3mm per km</span>
+                    </div>
+                </div>
+                <div class="form-no-text">FJYET-BG-2215A/0</div>
+            </div>
+            
+            <!-- 操作按钮区域 -->
+            <div class="usage-actions no-print">
+                <button id="backToMainFrom053Btn" class="back-btn">
+                    <span>返回主页面</span>
+                </button>
+                <button id="editUsage053Btn" class="usage-edit-btn">
+                    <span class="icon icon-edit"></span>
+                    编辑使用记录
+                </button>
+            </div>
+            
+            <!-- 表格区域 -->
+            <div class="usage-table-section">
+                <h3 class="no-print">仪器设备日常使用记录</h3>
+                <div class="usage-table-container" id="usageTableContainer053">
+                    <!-- 使用记录表格将通过JavaScript动态生成 -->
+                </div>
+            </div>
+            
+            <div class="usage-footer no-print">
+                <p>生成时间：<span id="usageGenerateTime053"></span></p>
+                <p style="margin-top: 10px; font-size: 0.8rem;"></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 密码输入对话框 -->
+    <div class="password-dialog-overlay" id="passwordDialogOverlay">
+        <div class="password-dialog">
+            <h3 class="password-dialog-title">
+                <span class="icon icon-lock"></span>
+                管理员登录
+            </h3>
+            <input type="password" id="passwordDialogInput" class="password-dialog-input" placeholder="请输入管理员密码" autocomplete="off" autofocus>
+            
+            <div id="capslockWarning" class="capslock-warning">
+                <span class="icon icon-caps"></span>
+                <span>Caps Lock 已开启</span>
+            </div>
+            
+            <div class="password-dialog-buttons">
+                <button id="passwordDialogSubmit" class="password-dialog-btn password-dialog-submit">登录</button>
+                <button id="passwordDialogCancel" class="password-dialog-btn password-dialog-cancel">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 数据导入对话框 -->
+    <div class="data-import-dialog-overlay" id="dataImportDialogOverlay">
+        <div class="data-import-dialog">
+            <h3 class="data-import-dialog-title">
+                <span class="icon icon-import"></span>
+                导入仪器数据
+            </h3>
+            <div class="data-import-file-input" id="dataImportFileInput">
+                <span>点击选择文件或拖放文件到这里</span>
+                <input type="file" id="dataImportFile" accept=".json" style="display: none;">
+            </div>
+            
+            <div class="data-import-info">
+                <p><strong>导入说明：</strong></p>
+                <p>1. 仅支持从本系统导出的JSON格式文件</p>
+                <p>2. 导入数据将覆盖当前所有数据，请谨慎操作</p>
+                <p>3. 建议在导入前先导出当前数据作为备份</p>
+                <p>4. 文件必须包含有效的仪器数据格式</p>
+            </div>
+            
+            <div class="data-import-buttons">
+                <button id="dataImportConfirmBtn" class="data-import-btn-confirm" disabled>
+                    确认导入
+                </button>
+                <button id="dataImportCancelBtn" class="data-import-btn-cancel">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 编辑有效期弹出窗口 -->
+    <div class="edit-overlay" id="editOverlay"></div>
+    <div class="edit-form-popup" id="editFormPopup">
+        <h3 class="edit-form-title">
+            <span class="icon icon-edit"></span>
+            编辑仪器信息
+        </h3>
+        <div class="edit-form-group">
+            <label for="editInstrumentId">仪器管理编号</label>
+            <input type="text" id="editInstrumentId" class="edit-form-input" readonly>
+        </div>
+        <div class="edit-form-group">
+            <label for="editFactoryNo">出厂编号</label>
+            <input type="text" id="editFactoryNo" class="edit-form-input" placeholder="请输入出厂编号">
+        </div>
+        <div class="edit-form-group">
+            <label for="editLastCalibration">上次检定日期</label>
+            <input type="date" id="editLastCalibration" class="edit-form-input">
+        </div>
+        <div class="edit-form-group">
+            <label for="editExpiryDate">有效期至</label>
+            <input type="date" id="editExpiryDate" class="edit-form-input">
+        </div>
+        <div class="edit-form-group">
+            <label for="editNotes">备注</label>
+            <input type="text" id="editNotes" class="edit-form-input" placeholder="可选：校准、维修等信息">
+        </div>
+        <div class="edit-form-buttons">
+            <button id="editFormSaveBtn" class="edit-form-btn edit-form-save">保存</button>
+            <button id="editFormCancelBtn" class="edit-form-btn edit-form-cancel">取消</button>
+        </div>
+    </div>
+    
+    <!-- 批量编辑弹出窗口 -->
+    <div class="batch-edit-overlay" id="batchEditOverlay"></div>
+    <div class="batch-edit-popup" id="batchEditPopup">
+        <h3 class="batch-edit-title">
+            <span class="icon icon-edit"></span>
+            批量编辑选中仪器
+        </h3>
+        <div class="batch-edit-info">
+            您已选择 <span id="batchEditCount">0</span> 台仪器进行批量编辑
+        </div>
+        <div class="batch-edit-form-group">
+            <label for="batchFactoryNo">出厂编号</label>
+            <input type="text" id="batchFactoryNo" class="batch-edit-form-input" placeholder="可填写出厂编号">
+        </div>
+        <div class="batch-edit-form-group">
+            <label for="batchLastCalibration">上次检定日期</label>
+            <input type="date" id="batchLastCalibration" class="batch-edit-form-input">
+        </div>
+        <div class="batch-edit-form-group">
+            <label for="batchExpiryDate">有效期至</label>
+            <input type="date" id="batchExpiryDate" class="batch-edit-form-input">
+        </div>
+        <div class="batch-edit-buttons">
+            <button id="batchEditSaveBtn" class="batch-edit-btn-save">保存到所有选中仪器</button>
+            <button id="batchEditCancelBtn" class="batch-edit-btn-cancel">取消</button>
+        </div>
+    </div>
+    
+    <!-- 出库对话框 -->
+    <div class="outbound-dialog-overlay" id="outboundDialogOverlay">
+        <div class="outbound-dialog">
+            <h3 class="outbound-dialog-title">
+                <span class="icon icon-export"></span>
+                填写设备出库信息
+            </h3>
+            <div class="outbound-dialog-form">
+                <div class="outbound-dialog-group">
+                    <label for="outboundDate">设备出库日期 <span class="optional">(必填)</span></label>
+                    <input type="date" id="outboundDate" class="outbound-dialog-input" value="">
+                </div>
+                <div class="outbound-dialog-group">
+                    <label for="outboundReceiver">领取人 <span class="optional">(必填)</span></label>
+                    <input type="text" id="outboundReceiver" class="outbound-dialog-input" placeholder="请输入领取人姓名">
+                </div>
+                <div class="outbound-dialog-group">
+                    <label for="outboundManager">管理员 <span class="optional">(非必填)</span></label>
+                    <input type="text" id="outboundManager" class="outbound-dialog-input" placeholder="请输入管理员姓名">
+                </div>
+            </div>
+            <div class="outbound-dialog-buttons">
+                <button id="outboundDialogConfirm" class="outbound-dialog-btn outbound-dialog-confirm">确认并跳转</button>
+                <button id="outboundDialogCancel" class="outbound-dialog-btn outbound-dialog-cancel">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 入库对话框 -->
+    <div class="inbound-dialog-overlay" id="inboundDialogOverlay">
+        <div class="inbound-dialog">
+            <h3 class="inbound-dialog-title">
+                <span class="icon icon-import"></span>
+                填写设备入库信息
+            </h3>
+            <div class="inbound-dialog-form">
+                <div class="inbound-dialog-row">
+                    <div class="inbound-dialog-group">
+                        <label for="inboundDate">设备入库时间 <span class="optional">(必填)</span></label>
+                        <input type="date" id="inboundDate" class="inbound-dialog-input" value="">
+                    </div>
+                    <div class="inbound-dialog-group">
+                        <label for="inboundStatus">状态 <span class="optional">(必填)</span></label>
+                        <select id="inboundStatus" class="inbound-dialog-input">
+                            <option value="正常">正常</option>
+                            <option value="良好">良好</option>
+                            <option value="可用">可用</option>
+                            <option value="待检">待检</option>
+                            <option value="维修中">维修中</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="inbound-dialog-row">
+                    <div class="inbound-dialog-group">
+                        <label for="inboundReturner">归还人 <span class="optional">(必填)</span></label>
+                        <input type="text" id="inboundReturner" class="inbound-dialog-input" placeholder="请输入归还人姓名">
+                    </div>
+                    <div class="inbound-dialog-group">
+                        <label for="inboundManager">管理员 <span class="optional">(非必填)</span></label>
+                        <input type="text" id="inboundManager" class="inbound-dialog-input" placeholder="请输入管理员姓名">
+                    </div>
+                </div>
+                <div class="inbound-dialog-info">
+                    <p><strong>说明：</strong></p>
+                    <p>1. 设备入库时间：默认为今天，可修改</p>
+                    <p>2. 状态：默认为"正常"，可选择其他状态</p>
+                    <p>3. 填写完成后点击"确认并打印"开始打印</p>
+                </div>
+            </div>
+            <div class="inbound-dialog-buttons">
+                <button id="inboundDialogConfirm" class="inbound-dialog-btn inbound-dialog-confirm">确认并打印</button>
+                <button id="inboundDialogCancel" class="inbound-dialog-btn inbound-dialog-cancel">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 使用记录对话框 -->
+    <div class="usage-record-overlay" id="usageRecordOverlay">
+        <div class="usage-record-dialog">
+            <h3 class="usage-record-title">
+                <span class="icon icon-calendar"></span>
+                记录仪器使用情况
+            </h3>
+            <div class="usage-record-instrument" id="usageRecordInstrument">
+                正在为仪器 <strong id="usageRecordInstrumentId"></strong> 记录使用情况
+            </div>
+            <div class="usage-record-form">
+                <div class="usage-record-group">
+                    <label for="usageRecordDate">使用日期</label>
+                    <input type="date" id="usageRecordDate" class="usage-record-input" value="">
+                </div>
+                <div class="usage-record-group">
+                    <label for="usageRecordPreStatus">使用前工作状态</label>
+                    <input type="text" id="usageRecordPreStatus" class="usage-record-input" placeholder="请输入使用前工作状态">
+                </div>
+                <div class="usage-record-group">
+                    <label for="usageRecordDuringStatus">使用时工作状态</label>
+                    <input type="text" id="usageRecordDuringStatus" class="usage-record-input" placeholder="请输入使用时工作状态">
+                </div>
+                <div class="usage-record-group">
+                    <label for="usageRecordPerson">使用人员</label>
+                    <input type="text" id="usageRecordPerson" class="usage-record-input" placeholder="请输入使用人员姓名">
+                </div>
+                <div class="usage-record-group">
+                    <label for="usageRecordSample">样品编号/项目名称</label>
+                    <input type="text" id="usageRecordSample" class="usage-record-input" placeholder="请输入样品编号或项目名称">
+                </div>
+            </div>
+            <div class="usage-record-buttons">
+                <button id="usageRecordSubmit" class="usage-record-btn usage-record-submit">保存记录</button>
+                <button id="usageRecordCancel" class="usage-record-btn usage-record-cancel">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 添加仪器对话框 -->
+    <div class="add-instrument-overlay" id="addInstrumentOverlay"></div>
+    <div class="add-instrument-popup" id="addInstrumentPopup">
+        <h3 class="add-instrument-title">
+            <span class="icon icon-add"></span>
+            添加新仪器
+        </h3>
+        <div class="add-instrument-form">
+            <div class="add-form-group">
+                <label for="addInstrumentId">管理编号 <span class="required">*</span></label>
+                <input type="text" id="addInstrumentId" class="add-form-input" placeholder="例如：TE06-XXX">
+            </div>
+            <div class="add-form-group">
+                <label for="addInstrumentName">仪器名称 <span class="required">*</span></label>
+                <input type="text" id="addInstrumentName" class="add-form-input" placeholder="例如：一体式数显回弹仪">
+            </div>
+            <div class="add-form-group">
+                <label for="addInstrumentSpec">型号规格 <span class="required">*</span></label>
+                <input type="text" id="addInstrumentSpec" class="add-form-input" placeholder="例如：HT-225T">
+            </div>
+            <div class="add-form-group">
+                <label for="addInstrumentFactoryNo">出厂编号</label>
+                <input type="text" id="addInstrumentFactoryNo" class="add-form-input" placeholder="例如：13219126829">
+            </div>
+            <div class="add-form-group">
+                <label for="addInstrumentLastCalibration">上次检定日期</label>
+                <input type="date" id="addInstrumentLastCalibration" class="add-form-input">
+            </div>
+            <div class="add-form-group">
+                <label for="addInstrumentExpiry">有效期至 <span class="required">*</span></label>
+                <input type="date" id="addInstrumentExpiry" class="add-form-input">
+            </div>
+            <div class="add-form-group">
+                <label for="addInstrumentNotes">备注</label>
+                <input type="text" id="addInstrumentNotes" class="add-form-input" placeholder="例如：校准、维修等信息">
+            </div>
+            <div class="add-instrument-buttons">
+                <button id="addInstrumentSaveBtn" class="add-instrument-btn save-btn">保存仪器</button>
+                <button id="addInstrumentCancelBtn" class="add-instrument-btn cancel-btn">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 自动保存指示器 -->
+    <div id="autoSaveIndicator" class="auto-save-indicator">
+        <span>数据已自动保存</span>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
